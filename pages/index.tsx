@@ -179,14 +179,10 @@ const HomePage: React.FC = () => {
 
   // --- Data Handlers (Now with Supabase) ---
   const handleAddHospital = async (name: string, province: string, city: string, supervisorName: string, supervisorNationalId: string, supervisorPassword: string) => {
-    const newHospital: Hospital = {
-      id: `hosp-${Date.now()}`,
-      name, province, city, supervisorName, supervisorNationalId, supervisorPassword,
-      departments: [], checklistTemplates: [], examTemplates: [], trainingMaterials: [], accreditationMaterials: [], newsBanners: [], adminMessages: [],
-    };
+    const newHospitalId = `hosp-${Date.now()}`;
 
     const { error } = await supabase.from('hospitals').insert({
-        id: newHospital.id, name, province, city,
+        id: newHospitalId, name, province, city,
         supervisor_name: supervisorName,
         supervisor_national_id: supervisorNationalId,
         supervisor_password: supervisorPassword,
@@ -195,9 +191,9 @@ const HomePage: React.FC = () => {
 
     if (error) {
         console.error("Error adding hospital:", error);
-        alert("خطا در افزودن بیمارستان.");
+        alert(`خطا در افزودن بیمارستان: ${error.message}`);
     } else {
-        setHospitals([...hospitals, newHospital]);
+        await fetchData();
     }
   };
   
@@ -212,17 +208,21 @@ const HomePage: React.FC = () => {
   }
 
   const handleDeleteHospital = async (id: string) => {
-    // Supabase delete logic here...
-    setHospitals(hospitals.filter(h => h.id !== id));
+    const { error } = await supabase.from('hospitals').delete().eq('id', id);
+    if(error){
+        alert(`Failed to delete hospital: ${error.message}`);
+    } else {
+        await fetchData();
+    }
   };
 
   // --- Department Handlers ---
   const handleAddDepartment = async (name: string, managerName: string, managerNationalId: string, managerPassword: string, staffCount: number, bedCount: number) => {
     if (!selectedHospitalId) return;
-    const newDepartment: Department = { id: `dept-${Date.now()}`, name, managerName, managerNationalId, managerPassword, staffCount, bedCount, staff: [], patients: [], patientEducationMaterials: [] };
+    const newDepartmentId = `dept-${Date.now()}`;
     
     const { error } = await supabase.from('departments').insert({
-        id: newDepartment.id,
+        id: newDepartmentId,
         hospital_id: selectedHospitalId,
         name,
         manager_name: managerName,
@@ -233,16 +233,10 @@ const HomePage: React.FC = () => {
     });
     
     if (error) {
-        alert('Failed to add department.');
+        alert(`Failed to add department: ${error.message}`);
         console.error(error);
     } else {
-        setHospitals(
-          hospitals.map(h =>
-            h.id === selectedHospitalId
-              ? { ...h, departments: [...h.departments, newDepartment] }
-              : h
-          )
-        );
+        await fetchData();
     }
   };
 
@@ -262,15 +256,9 @@ const HomePage: React.FC = () => {
   const handleDeleteDepartment = async (id: string) => {
     const { error } = await supabase.from('departments').delete().eq('id', id);
     if(error){
-        alert("Failed to delete department");
+        alert(`Failed to delete department: ${error.message}`);
     } else {
-        setHospitals(
-          hospitals.map(h =>
-            h.id === selectedHospitalId
-              ? { ...h, departments: h.departments.filter(d => d.id !== id) }
-              : h
-          )
-        );
+        await fetchData();
     }
   };
 
@@ -594,6 +582,60 @@ const HomePage: React.FC = () => {
         break;
     }
   };
+    
+  const handleSaveData = () => {
+    if (!hospitals || hospitals.length === 0) {
+        alert("No data to save.");
+        return;
+    }
+    try {
+        const jsonString = JSON.stringify(hospitals, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const timestamp = new Date().toISOString().replace(/:/g, '-');
+        a.download = `my-hospital-backup-${timestamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert('Local backup saved successfully!');
+    } catch (error) {
+        console.error("Failed to save data:", error);
+        alert('Failed to save data as a local backup file.');
+    }
+  };
+
+  const handleLoadData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target?.result as string);
+                    if (Array.isArray(data) && (data.length === 0 || data.every(h => h.id && h.name))) {
+                        if (window.confirm("Are you sure you want to overwrite current data with the backup file? This will not be saved to the online database automatically.")) {
+                            setHospitals(data);
+                            alert('Local backup loaded successfully. Remember, these changes are not yet saved to the database.');
+                        }
+                    } else {
+                        throw new Error('Invalid backup file format.');
+                    }
+                } catch (error) {
+                    console.error("Failed to load data:", error);
+                    alert('Failed to load or parse the backup file.');
+                }
+            };
+            reader.readAsText(file);
+        }
+    };
+    input.click();
+  };
   
     // Placeholder for other handlers that need to be implemented
   const handleAddOrUpdateAssessment = () => console.log("Not implemented: handleAddOrUpdateAssessment");
@@ -608,8 +650,6 @@ const HomePage: React.FC = () => {
   const handleDeleteStaff = () => console.log("Not implemented: handleDeleteStaff");
   const handleComprehensiveImport = () => console.log("Not implemented: handleComprehensiveImport");
   const handleAddOrUpdateWorkLog = () => console.log("Not implemented: handleAddOrUpdateWorkLog");
-  const handleSaveData = () => alert("Data is now saved live to the database. Manual saving is no longer needed.");
-  const handleLoadData = () => alert("Data loading from local files is disabled when connected to the database.");
   const handleAddPatient = () => console.log("Not implemented: handleAddPatient");
   const handleDeletePatient = () => console.log("Not implemented: handleDeletePatient");
 
@@ -727,18 +767,68 @@ const HomePage: React.FC = () => {
     // ... rest of renderApp
     return (
         <div className="bg-slate-100 dark:bg-slate-900 min-h-screen flex flex-col">
-            <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 shadow-md flex justify-between items-center">
-                 <h1 className="text-2xl font-bold">سامانه بیمارستان من</h1>
-                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+            <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 shadow-md flex justify-between items-center sticky top-0 z-40 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-4">
+                    {appScreen === AppScreen.MainApp && (
+                        <button
+                            onClick={handleBack}
+                            className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="بازگشت"
+                        >
+                            <BackIcon className="w-6 h-6" />
+                        </button>
+                    )}
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">سامانه بیمارستان من</h1>
+                </div>
+                <div className="flex items-center gap-2">
+                    {/* FIX: The `appScreen !== AppScreen.Welcome` check is redundant because the code path
+                    that renders this part is only reachable when `appScreen` is not `Welcome`. */}
+                    {loggedInUser?.role === UserRole.Admin && (
+                      <>
+                        <button
+                            onClick={handleSaveData}
+                            className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="ذخیره پشتیبان محلی"
+                        >
+                            <SaveIcon className="w-6 h-6" />
+                        </button>
+                        <button
+                            onClick={handleLoadData}
+                            className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="بارگذاری پشتیبان محلی"
+                        >
+                            <UploadIcon className="w-6 h-6" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                        onClick={() => setIsAboutModalOpen(true)}
+                        className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        title="درباره برنامه"
+                    >
+                        <InfoIcon className="w-6 h-6" />
+                    </button>
+
                     {loggedInUser ? (
-                      <button onClick={handleLogout} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors" title="خروج">
-                          <LogoutIcon className="w-5 h-5" />
-                          <span className="hidden sm:inline">خروج</span>
-                      </button>
+                        <div className="flex items-center gap-2">
+                            <span className="hidden sm:inline text-sm text-slate-600 dark:text-slate-300">
+                                خوش آمدید, <span className="font-semibold">{loggedInUser.name}</span>
+                            </span>
+                            <button
+                                onClick={handleLogout}
+                                className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                title="خروج"
+                            >
+                                <LogoutIcon className="w-6 h-6" />
+                            </button>
+                        </div>
                     ) : (
-                      <button onClick={() => setIsLoginModalOpen(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors" title="ورود">
-                          <span>ورود</span>
-                      </button>
+                        <button
+                            onClick={() => setIsLoginModalOpen(true)}
+                            className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                        >
+                            ورود
+                        </button>
                     )}
                 </div>
             </header>

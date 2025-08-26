@@ -78,12 +78,12 @@ const parseAssessmentsFromSheet = (worksheet: any): Map<string, SkillCategory[]>
     // After parsing, filter out months that did not have any scores.
     // An assessment is only considered "registered" if at least one skill has a score.
     const validAssessments = new Map<string, SkillCategory[]>();
-    for (const [month, categories] of assessments.entries()) {
+    assessments.forEach((categories, month) => {
         const hasAnyItems = categories.some(category => category.items.length > 0);
         if (hasAnyItems) {
             validAssessments.set(month, categories);
         }
-    }
+    });
 
     return validAssessments;
 };

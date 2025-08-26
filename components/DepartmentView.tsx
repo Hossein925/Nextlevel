@@ -10,7 +10,6 @@ import { ClipboardDocumentCheckIcon } from './icons/ClipboardDocumentCheckIcon';
 import { ChecklistIcon } from './icons/ChecklistIcon';
 import NewsCarousel from './NewsCarousel';
 import { BookOpenIcon } from './icons/BookOpenIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 
 interface DepartmentViewProps {
@@ -28,7 +27,6 @@ interface DepartmentViewProps {
   onAddOrUpdateWorkLog: (departmentId: string, staffId: string, workLog: MonthlyWorkLog) => void;
   userRole: UserRole;
   newsBanners: NewsBanner[];
-  supabase: SupabaseClient;
 }
 
 const PERSIAN_MONTHS = [
@@ -55,7 +53,6 @@ const DepartmentView: React.FC<DepartmentViewProps> = ({
   onAddOrUpdateWorkLog,
   userRole,
   newsBanners,
-  supabase,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -608,7 +605,7 @@ const DepartmentView: React.FC<DepartmentViewProps> = ({
 
     {newsBanners && newsBanners.length > 0 && (
         <div className="mb-8 max-w-5xl mx-auto">
-            <NewsCarousel banners={newsBanners} supabase={supabase} />
+            <NewsCarousel banners={newsBanners} />
         </div>
     )}
 

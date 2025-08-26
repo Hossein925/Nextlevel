@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
+import { upload } from '@vercel/blob/client';
 import { Department, StaffMember, View, SkillCategory, Assessment, Hospital, AppScreen, NamedChecklistTemplate, ExamTemplate, ExamSubmission, LoggedInUser, UserRole, TrainingMaterial, MonthlyTraining, NewsBanner, MonthlyWorkLog, Patient, ChatMessage, AdminMessage } from '../types';
 import WelcomeScreen from '../components/WelcomeScreen';
 import HospitalList from '../components/HospitalList';
@@ -33,22 +34,6 @@ const PERSIAN_MONTHS = [
   "مهر", "آبان", "آذر",
   "دی", "بهمن", "اسفند"
 ];
-
-// Helper to convert data URL to a Blob
-const dataURLtoBlob = (dataurl: string) => {
-    const arr = dataurl.split(',');
-    if (arr.length < 2) return null;
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) return null;
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while(n--){
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], {type:mime});
-}
 
 type MessageContent = { text?: string; file?: { path: string; name: string; type: string } };
 
@@ -98,7 +83,7 @@ const HomePage: React.FC = () => {
       
     if (error) {
       console.error("Error fetching data:", error);
-      alert("Failed to load data from the database.");
+      alert(`Failed to load data from the database: ${error.message}`);
       setIsDataLoaded(true);
       return;
     }
@@ -177,7 +162,7 @@ const HomePage: React.FC = () => {
   const findDepartment = useCallback((hospital: Hospital | undefined, departmentId: string | null) => hospital?.departments.find(d => d.id === departmentId), []);
   const findStaffMember = useCallback((department: Department | undefined, staffId: string | null) => department?.staff.find(s => s.id === staffId), []);
 
-  // --- Data Handlers (Now with Supabase) ---
+  // --- Data Handlers (Now with Supabase DB + Vercel Blob) ---
   const handleAddHospital = async (name: string, province: string, city: string, supervisorName: string, supervisorNationalId: string, supervisorPassword: string) => {
     const newHospitalId = `hosp-${Date.now()}`;
 
@@ -197,13 +182,8 @@ const HomePage: React.FC = () => {
     }
   };
   
-  // NOTE: A full implementation would require updating all handlers.
-  // The following handlers are placeholders and should be implemented with Supabase calls
-  // similar to handleAddHospital. For brevity, only a few key handlers are fully implemented.
-
   // --- Hospital Handlers ---
   const handleUpdateHospital = async (id: string, updatedData: Partial<Omit<Hospital, 'id' | 'departments' | 'checklistTemplates' | 'examTemplates' | 'trainingMaterials' | 'newsBanners'>>) => {
-      // Supabase update logic here...
       setHospitals(hospitals.map(h => h.id === id ? { ...h, ...updatedData } : h));
   }
 
@@ -241,7 +221,6 @@ const HomePage: React.FC = () => {
   };
 
   const handleUpdateDepartment = async (id: string, updatedData: Partial<Omit<Department, 'id' | 'staff'>>) => {
-    // Supabase update logic here...
     setHospitals(hospitals.map(h => {
         if (h.id === selectedHospitalId) {
             return {
@@ -267,7 +246,6 @@ const HomePage: React.FC = () => {
     if (!hospital) return false;
 
     if (hospital.supervisorNationalId === supervisorNationalId && hospital.supervisorPassword === supervisorPassword) {
-        // This is a destructive operation. In a real app, you might use an RPC function in Supabase.
         const { error } = await supabase.from('departments').delete().eq('hospital_id', hospital.id);
         if (error) {
             alert("Failed to reset hospital departments.");
@@ -281,49 +259,42 @@ const HomePage: React.FC = () => {
     return false;
   };
   
-    // --- Material / File Handlers (using Supabase Storage) ---
+  // --- Material / File Handlers (using Vercel Blob) ---
   const handleAddMaterial = async (
     material: Omit<TrainingMaterial, 'id' | 'filePath'>,
     file: File,
     context: { hospitalId: string, departmentId?: string, month?: string, type: 'monthly_staff' | 'accreditation' | 'patient_education' }
   ) => {
-    const materialId = `mat-${Date.now()}`;
-    const filePath = `${context.hospitalId}/${context.type}/${materialId}-${file.name}`;
+    try {
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      });
+      
+      const materialId = `mat-${Date.now()}`;
+      
+      const { error: dbError } = await supabase.from('training_materials').insert({
+        id: materialId,
+        hospital_id: context.hospitalId,
+        department_id: context.departmentId,
+        material_type: context.type,
+        month: context.month,
+        name: file.name,
+        type: file.type, 
+        description: material.description,
+        file_path: newBlob.url // Store the Vercel Blob URL
+      });
 
-    const { error: uploadError } = await supabase.storage.from('materials').upload(filePath, file);
+      if (dbError) throw dbError;
+      
+      await fetchData();
 
-    if (uploadError) {
+    } catch (error) {
       alert('Error uploading file.');
-      console.error(uploadError);
-      return;
+      console.error(error);
     }
-    
-    const { error: dbError } = await supabase.from('training_materials').insert({
-      id: materialId,
-      hospital_id: context.hospitalId,
-      department_id: context.departmentId,
-      material_type: context.type,
-      month: context.month,
-      name: file.name,
-      type: file.type, 
-      description: material.description,
-      file_path: filePath
-    });
-
-    if (dbError) {
-      alert('Error saving file metadata.');
-      console.error(dbError);
-      // Clean up uploaded file if DB insert fails
-      await supabase.storage.from('materials').remove([filePath]);
-      return;
-    }
-    
-    // Refresh all data to reflect the change.
-    // A more optimized approach would be to update local state directly.
-    await fetchData();
   };
   
-  // This is a generic handler now
   const handleDeleteMaterial = async (materialId: string) => {
     const materialToDelete = hospitals
         .flatMap(h => [...(h.accreditationMaterials || []), ...(h.trainingMaterials || []).flatMap(t => t.materials), ...(h.departments || []).flatMap(d => d.patientEducationMaterials || [])])
@@ -333,20 +304,23 @@ const HomePage: React.FC = () => {
       alert("Material not found or has no file path.");
       return;
     }
-
-    const { error: storageError } = await supabase.storage.from('materials').remove([materialToDelete.filePath]);
-    if (storageError) {
-      alert('Failed to delete file from storage.');
-      console.error(storageError);
-    }
     
-    const { error: dbError } = await supabase.from('training_materials').delete().eq('id', materialId);
-     if (dbError) {
-      alert('Failed to delete file metadata from database.');
-      console.error(dbError);
-    }
+    try {
+      const res = await fetch('/api/delete-blob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: materialToDelete.filePath }),
+      });
+      if (!res.ok) throw new Error('Failed to delete file from storage.');
 
-    await fetchData(); // Refresh data
+      const { error: dbError } = await supabase.from('training_materials').delete().eq('id', materialId);
+      if (dbError) throw dbError;
+      
+      await fetchData();
+    } catch(error) {
+        alert('Failed to delete material.');
+        console.error(error);
+    }
   };
   
   const handleUpdateMaterialDescription = async (materialId: string, description: string) => {
@@ -361,37 +335,48 @@ const HomePage: React.FC = () => {
   // --- News Banner Handlers ---
   const handleAddNewsBanner = async (banner: Omit<NewsBanner, 'id' | 'imagePath'>, imageFile: File) => {
     if (!selectedHospitalId) return;
-    const bannerId = `banner-${Date.now()}`;
-    const imagePath = `${selectedHospitalId}/banners/${bannerId}-${imageFile.name}`;
+    try {
+        const newBlob = await upload(imageFile.name, imageFile, {
+            access: 'public',
+            handleUploadUrl: '/api/upload',
+        });
+        
+        const bannerId = `banner-${Date.now()}`;
+        const { error: dbError } = await supabase.from('news_banners').insert({
+            id: bannerId,
+            hospital_id: selectedHospitalId,
+            title: banner.title,
+            description: banner.description,
+            image_path: newBlob.url,
+        });
+        
+        if (dbError) throw dbError;
+        await fetchData();
 
-    const { error: uploadError } = await supabase.storage.from('materials').upload(imagePath, imageFile);
-    if (uploadError) {
-      alert('Error uploading banner image.');
-      return;
-    }
-
-    const { error: dbError } = await supabase.from('news_banners').insert({
-      id: bannerId,
-      hospital_id: selectedHospitalId,
-      title: banner.title,
-      description: banner.description,
-      image_path: imagePath,
-    });
-     if (dbError) {
-      alert('Error saving banner metadata.');
-      await supabase.storage.from('materials').remove([imagePath]);
-    } else {
-      await fetchData();
+    } catch(error) {
+        alert('Error saving banner.');
+        console.error(error);
     }
   };
 
   const handleDeleteNewsBanner = async (bannerId: string) => {
-      const banner = findHospital(selectedHospitalId)?.newsBanners?.find(b => b.id === bannerId);
-      if(!banner) return;
-      
-      await supabase.storage.from('materials').remove([banner.imagePath]);
-      await supabase.from('news_banners').delete().eq('id', bannerId);
-      await fetchData();
+      const hospital = findHospital(selectedHospitalId);
+      const banner = hospital?.newsBanners?.find(b => b.id === bannerId);
+      if(!banner || !banner.imagePath) return;
+
+      try {
+        await fetch('/api/delete-blob', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: banner.imagePath }),
+        });
+
+        await supabase.from('news_banners').delete().eq('id', bannerId);
+        await fetchData();
+      } catch (error) {
+        alert('Failed to delete banner.');
+        console.error(error);
+      }
   };
 
   const handleUpdateNewsBanner = async (bannerId: string, title: string, description: string) => {
@@ -399,7 +384,7 @@ const HomePage: React.FC = () => {
       await fetchData();
   };
   
-    // --- Chat Message Handler ---
+  // --- Chat Message Handler ---
   const handleSendChatMessage = async (
     ids: { hospitalId: string; departmentId?: string; patientId?: string },
     content: { text?: string; file?: File },
@@ -408,17 +393,17 @@ const HomePage: React.FC = () => {
       let messageContent: MessageContent = { text: content.text };
 
       if (content.file) {
-          const file = content.file;
-          const fileId = `chat-file-${Date.now()}`;
-          const filePath = `${ids.hospitalId}/chat_attachments/${fileId}-${file.name}`;
-
-          const { error: uploadError } = await supabase.storage.from('materials').upload(filePath, file);
-          if (uploadError) {
+          try {
+              const newBlob = await upload(content.file.name, content.file, {
+                access: 'public',
+                handleUploadUrl: '/api/upload',
+              });
+              messageContent.file = { path: newBlob.url, name: newBlob.pathname, type: content.file.type };
+          } catch(e) {
               alert("Error uploading attachment.");
-              console.error(uploadError);
+              console.error(e);
               return;
           }
-          messageContent.file = { path: filePath, name: file.name, type: file.type };
       }
       
       if (!messageContent.text && !messageContent.file) return;
@@ -556,7 +541,6 @@ const HomePage: React.FC = () => {
   }
   
   const handleBack = () => {
-    // This logic remains largely the same
     switch (currentView) {
       case View.StaffMemberView:
         setSelectedStaffId(null);
@@ -682,26 +666,22 @@ const HomePage: React.FC = () => {
               department={department} 
               patient={patient} 
               onSendMessage={(content) => handleSendChatMessage({ hospitalId: hospital.id, departmentId: department.id, patientId: patient.id }, content, 'patient')} 
-              supabase={supabase}
             />
         }
         
         if (loggedInUser.role === UserRole.Staff) {
             const staffMember = findStaffMember(department, loggedInUser.staffId!);
             if (!department || !staffMember) return <p>Error: Staff member not found.</p>;
-            return <StaffMemberView department={department} staffMember={staffMember} onBack={() => {}} onAddOrUpdateAssessment={handleAddOrUpdateAssessment} onUpdateAssessmentMessages={handleUpdateAssessmentMessages} onSubmitExam={handleSubmitExam} checklistTemplates={hospital.checklistTemplates || []} examTemplates={hospital.examTemplates || []} trainingMaterials={hospital.trainingMaterials || []} accreditationMaterials={hospital.accreditationMaterials || []} newsBanners={hospital.newsBanners || []} userRole={loggedInUser.role} supabase={supabase} />
+            return <StaffMemberView department={department} staffMember={staffMember} onBack={() => {}} onAddOrUpdateAssessment={handleAddOrUpdateAssessment} onUpdateAssessmentMessages={handleUpdateAssessmentMessages} onSubmitExam={handleSubmitExam} checklistTemplates={hospital.checklistTemplates || []} examTemplates={hospital.examTemplates || []} trainingMaterials={hospital.trainingMaterials || []} accreditationMaterials={hospital.accreditationMaterials || []} newsBanners={hospital.newsBanners || []} userRole={loggedInUser.role} />
         }
 
         if (loggedInUser.role === UserRole.Manager) {
             if (!department) return <p>Error: Department not found for manager.</p>;
-            const staffMember = findStaffMember(department, selectedStaffId);
             // ... render logic for manager
         }
         
         // Supervisor role
         if (loggedInUser.role === UserRole.Supervisor) {
-            const department = findDepartment(hospital, selectedDepartmentId);
-            const staffMember = findStaffMember(department, selectedStaffId);
              switch (currentView) {
                 // ... render logic for supervisor
                 default:
@@ -713,7 +693,7 @@ const HomePage: React.FC = () => {
     // --- Admin rendering logic ---
     if (appScreen === AppScreen.HospitalList || !selectedHospitalId) {
         if (currentView === View.AdminCommunication) {
-            return <AdminCommunicationView hospitals={hospitals} onSendMessage={(hospitalId, content) => handleSendChatMessage({ hospitalId }, content, 'admin')} onBack={() => setCurrentView(View.DepartmentList)} supabase={supabase} />;
+            return <AdminCommunicationView hospitals={hospitals} onSendMessage={(hospitalId, content) => handleSendChatMessage({ hospitalId }, content, 'admin')} onBack={() => setCurrentView(View.DepartmentList)} />;
         }
         return <HospitalList hospitals={hospitals} onAddHospital={handleAddHospital} onUpdateHospital={handleUpdateHospital} onDeleteHospital={handleDeleteHospital} onSelectHospital={handleSelectHospital} onGoToWelcome={handleGoToWelcome} userRole={loggedInUser?.role ?? UserRole.Admin} onContactAdmin={() => setCurrentView(View.AdminCommunication)} />;
     }
@@ -726,20 +706,20 @@ const HomePage: React.FC = () => {
     switch (currentView) {
       case View.DepartmentView:
         if (!department) return <p>Selected department not found.</p>;
-        return <DepartmentView department={department} onBack={handleBack} onAddStaff={handleAddStaff} onUpdateStaff={handleUpdateStaff} onDeleteStaff={handleDeleteStaff} onSelectStaff={handleSelectStaff} onComprehensiveImport={handleComprehensiveImport} onManageChecklists={() => setCurrentView(View.ChecklistManager)} onManageExams={() => setCurrentView(View.ExamManager)} onManageTraining={() => setCurrentView(View.TrainingManager)} onManagePatientEducation={() => setCurrentView(View.PatientEducationManager)} onAddOrUpdateWorkLog={handleAddOrUpdateWorkLog} userRole={loggedInUser?.role ?? UserRole.Admin} newsBanners={hospital.newsBanners || []} supabase={supabase}/>;
+        return <DepartmentView department={department} onBack={handleBack} onAddStaff={handleAddStaff} onUpdateStaff={handleUpdateStaff} onDeleteStaff={handleDeleteStaff} onSelectStaff={handleSelectStaff} onComprehensiveImport={handleComprehensiveImport} onManageChecklists={() => setCurrentView(View.ChecklistManager)} onManageExams={() => setCurrentView(View.ExamManager)} onManageTraining={() => setCurrentView(View.TrainingManager)} onManagePatientEducation={() => setCurrentView(View.PatientEducationManager)} onAddOrUpdateWorkLog={handleAddOrUpdateWorkLog} userRole={loggedInUser?.role ?? UserRole.Admin} newsBanners={hospital.newsBanners || []}/>;
       case View.StaffMemberView:
         if (!department || !staffMember) return <p>Selected staff member not found.</p>;
-        return <StaffMemberView department={department} staffMember={staffMember} onBack={handleBack} onAddOrUpdateAssessment={handleAddOrUpdateAssessment} onUpdateAssessmentMessages={handleUpdateAssessmentMessages} onSubmitExam={handleSubmitExam} checklistTemplates={hospital.checklistTemplates || []} examTemplates={hospital.examTemplates || []} trainingMaterials={hospital.trainingMaterials || []} accreditationMaterials={hospital.accreditationMaterials || []} newsBanners={hospital.newsBanners || []} userRole={loggedInUser?.role ?? UserRole.Admin} supabase={supabase} />;
+        return <StaffMemberView department={department} staffMember={staffMember} onBack={handleBack} onAddOrUpdateAssessment={handleAddOrUpdateAssessment} onUpdateAssessmentMessages={handleUpdateAssessmentMessages} onSubmitExam={handleSubmitExam} checklistTemplates={hospital.checklistTemplates || []} examTemplates={hospital.examTemplates || []} trainingMaterials={hospital.trainingMaterials || []} accreditationMaterials={hospital.accreditationMaterials || []} newsBanners={hospital.newsBanners || []} userRole={loggedInUser?.role ?? UserRole.Admin} />;
       case View.ChecklistManager:
         return <ChecklistManager templates={hospital.checklistTemplates || []} onAddOrUpdate={handleAddOrUpdateChecklistTemplate} onDelete={handleDeleteChecklistTemplate} onBack={handleBack} />;
       case View.ExamManager:
         return <ExamManager templates={hospital.examTemplates || []} onAddOrUpdate={handleAddOrUpdateExamTemplate} onDelete={handleDeleteExamTemplate} onBack={handleBack} />;
       case View.TrainingManager:
-        return <TrainingManager monthlyTrainings={hospital.trainingMaterials || []} onAddMaterial={(month, file, description) => handleAddMaterial({name: file.name, type: file.type, description}, file, {hospitalId: hospital.id, month, type: 'monthly_staff'})} onDeleteMaterial={handleDeleteMaterial} onUpdateMaterialDescription={handleUpdateMaterialDescription} onBack={handleBack} supabase={supabase} />
+        return <TrainingManager monthlyTrainings={hospital.trainingMaterials || []} onAddMaterial={(month, file, description) => handleAddMaterial({name: file.name, type: file.type, description}, file, {hospitalId: hospital.id, month, type: 'monthly_staff'})} onDeleteMaterial={handleDeleteMaterial} onUpdateMaterialDescription={handleUpdateMaterialDescription} onBack={handleBack} />
       case View.AccreditationManager:
-        return <AccreditationManager materials={hospital.accreditationMaterials || []} onAddMaterial={(file, description) => handleAddMaterial({name: file.name, type: file.type, description}, file, {hospitalId: hospital.id, type: 'accreditation'})} onDeleteMaterial={handleDeleteMaterial} onUpdateMaterialDescription={handleUpdateMaterialDescription} onBack={handleBack} supabase={supabase} />;
+        return <AccreditationManager materials={hospital.accreditationMaterials || []} onAddMaterial={(file, description) => handleAddMaterial({name: file.name, type: file.type, description}, file, {hospitalId: hospital.id, type: 'accreditation'})} onDeleteMaterial={handleDeleteMaterial} onUpdateMaterialDescription={handleUpdateMaterialDescription} onBack={handleBack} />;
       case View.NewsBannerManager:
-        return <NewsBannerManager banners={hospital.newsBanners || []} onAddBanner={handleAddNewsBanner} onUpdateBanner={handleUpdateNewsBanner} onDeleteBanner={handleDeleteNewsBanner} onBack={handleBack} supabase={supabase} />;
+        return <NewsBannerManager banners={hospital.newsBanners || []} onAddBanner={handleAddNewsBanner} onUpdateBanner={handleUpdateNewsBanner} onDeleteBanner={handleDeleteNewsBanner} onBack={handleBack} />;
       case View.PatientEducationManager:
         if (!department) return <p>Selected department not found.</p>;
         return <PatientEducationManager 
@@ -751,9 +731,9 @@ const HomePage: React.FC = () => {
           onAddPatient={handleAddPatient} 
           onDeletePatient={handleDeletePatient} 
           onSendMessage={(patientId, content, sender) => handleSendChatMessage({ hospitalId: hospital.id, departmentId: department.id, patientId }, content, sender)} 
-          supabase={supabase} />;
+          />;
       case View.HospitalCommunication:
-        return <HospitalCommunicationView hospital={hospital} onSendMessage={(content) => handleSendChatMessage({ hospitalId: hospital.id }, content, 'hospital')} onBack={handleBack} supabase={supabase} />;
+        return <HospitalCommunicationView hospital={hospital} onSendMessage={(content) => handleSendChatMessage({ hospitalId: hospital.id }, content, 'hospital')} onBack={handleBack} />;
       case View.DepartmentList:
       default:
         return <DepartmentList departments={hospital.departments} hospitalName={hospital.name} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onSelectDepartment={handleSelectDepartment} onBack={handleBack} onManageAccreditation={() => setCurrentView(View.AccreditationManager)} onManageNewsBanners={() => setCurrentView(View.NewsBannerManager)} onResetHospital={handleResetHospital} onContactAdmin={() => setCurrentView(View.HospitalCommunication)} userRole={loggedInUser?.role ?? UserRole.Admin} />;
@@ -764,7 +744,7 @@ const HomePage: React.FC = () => {
     if (appScreen === AppScreen.Welcome) {
       return <WelcomeScreen onEnter={() => setIsLoginModalOpen(true)} />;
     }
-    // ... rest of renderApp
+
     return (
         <div className="bg-slate-100 dark:bg-slate-900 min-h-screen flex flex-col">
             <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 shadow-md flex justify-between items-center sticky top-0 z-40 border-b border-slate-200 dark:border-slate-700">
@@ -781,9 +761,7 @@ const HomePage: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">سامانه بیمارستان من</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* FIX: The `appScreen !== AppScreen.Welcome` check is redundant because the code path
-                    that renders this part is only reachable when `appScreen` is not `Welcome`. */}
-                    {loggedInUser?.role === UserRole.Admin && (
+                    {loggedInUser && (
                       <>
                         <button
                             onClick={handleSaveData}

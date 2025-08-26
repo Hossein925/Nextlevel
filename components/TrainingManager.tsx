@@ -10,7 +10,6 @@ import { VideoIcon } from './icons/VideoIcon';
 import { AudioIcon } from './icons/AudioIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface TrainingManagerProps {
   monthlyTrainings: MonthlyTraining[];
@@ -18,7 +17,6 @@ interface TrainingManagerProps {
   onDeleteMaterial: (month: string, materialId: string) => void;
   onUpdateMaterialDescription: (month: string, materialId: string, description: string) => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
 const PERSIAN_MONTHS = [
@@ -33,7 +31,7 @@ const getIconForMimeType = (type: string): { icon: React.ReactNode, color: strin
     return { icon: <DocumentIcon className="w-10 h-10" />, color: 'text-slate-500' };
 };
 
-const TrainingManager: React.FC<TrainingManagerProps> = ({ monthlyTrainings, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onBack, supabase }) => {
+const TrainingManager: React.FC<TrainingManagerProps> = ({ monthlyTrainings, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onBack }) => {
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[0]);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -161,8 +159,7 @@ const TrainingManager: React.FC<TrainingManagerProps> = ({ monthlyTrainings, onA
                 </div>
             </div>
             
-            {/* FIX: Added the required 'supabase' prop to PreviewModal. */}
-            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
             
             <Modal isOpen={descriptionModalOpen} onClose={() => setDescriptionModalOpen(false)} title={pendingFile ? "افزودن توضیحات" : "ویرایش توضیحات"}>
                 <div className="space-y-4">

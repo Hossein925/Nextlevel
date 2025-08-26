@@ -2,16 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { TrainingMaterial } from '../types';
 import { DocumentIcon } from './icons/DocumentIcon';
 import { SaveIcon } from './icons/SaveIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface PreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   material: TrainingMaterial;
-  supabase: SupabaseClient;
 }
 
-const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, material, supabase }) => {
+const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, material }) => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,25 +18,17 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, material, 
     if (isOpen && material?.filePath) {
       setIsLoading(true);
       setError(null);
-      setFileUrl(null);
-
-      const getFileUrl = async () => {
-        const { data, error } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(material.filePath!, 60 * 60); // 1-hour expiry
-
-        if (error) {
-          console.error("Error creating signed URL:", error);
-          setError('خطا در بارگذاری فایل.');
-        } else {
-          setFileUrl(data.signedUrl);
-        }
-        setIsLoading(false);
-      };
-
-      getFileUrl();
+      
+      // The filePath is now a direct public URL from Vercel Blob
+      if (material.filePath.startsWith('https://')) {
+          setFileUrl(material.filePath);
+          setIsLoading(false);
+      } else {
+          setError('Invalid file path found.');
+          setIsLoading(false);
+      }
     }
-  }, [isOpen, material, supabase]);
+  }, [isOpen, material]);
 
   if (!isOpen) return null;
 

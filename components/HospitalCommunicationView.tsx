@@ -8,7 +8,6 @@ import { VideoIcon } from './icons/VideoIcon';
 import { AudioIcon } from './icons/AudioIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 const getIconForMimeType = (type: string): { icon: React.ReactNode, color: string } => {
     if (type.startsWith('image/')) return { icon: <ImageIcon className="w-8 h-8" />, color: 'text-blue-500' };
@@ -22,10 +21,9 @@ interface HospitalCommunicationViewProps {
   hospital: Hospital;
   onSendMessage: (content: { text?: string; file?: File }) => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
-const HospitalCommunicationView: React.FC<HospitalCommunicationViewProps> = ({ hospital, onSendMessage, onBack, supabase }) => {
+const HospitalCommunicationView: React.FC<HospitalCommunicationViewProps> = ({ hospital, onSendMessage, onBack }) => {
   const [newMessage, setNewMessage] = useState('');
   const [previewMaterial, setPreviewMaterial] = useState<TrainingMaterial | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -125,7 +123,7 @@ const HospitalCommunicationView: React.FC<HospitalCommunicationViewProps> = ({ h
           </button>
         </div>
       </div>
-      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
     </>
   );
 };

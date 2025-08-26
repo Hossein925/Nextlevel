@@ -8,7 +8,6 @@ import { VideoIcon } from './icons/VideoIcon';
 import { AudioIcon } from './icons/AudioIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 const getIconForMimeType = (type: string): { icon: React.ReactNode, color: string } => {
     if (type.startsWith('image/')) return { icon: <ImageIcon className="w-8 h-8" />, color: 'text-blue-500' };
@@ -22,10 +21,9 @@ interface AdminCommunicationViewProps {
   hospitals: Hospital[];
   onSendMessage: (hospitalId: string, content: { text?: string; file?: File }) => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
-const AdminCommunicationView: React.FC<AdminCommunicationViewProps> = ({ hospitals, onSendMessage, onBack, supabase }) => {
+const AdminCommunicationView: React.FC<AdminCommunicationViewProps> = ({ hospitals, onSendMessage, onBack }) => {
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(hospitals[0]?.id || null);
   const [replyTexts, setReplyTexts] = useState<{ [hospitalId: string]: string }>({});
   const [previewMaterial, setPreviewMaterial] = useState<TrainingMaterial | null>(null);
@@ -165,7 +163,7 @@ const AdminCommunicationView: React.FC<AdminCommunicationViewProps> = ({ hospita
           )}
         </div>
       </div>
-      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
     </>
   );
 };

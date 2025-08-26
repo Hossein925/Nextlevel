@@ -12,7 +12,6 @@ import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
 import { PaperClipIcon } from './icons/PaperClipIcon';
 import { EditIcon } from './icons/EditIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface PatientEducationManagerProps {
   department: Department;
@@ -23,7 +22,6 @@ interface PatientEducationManagerProps {
   onDeletePatient: (patientId: string) => void;
   onSendMessage: (patientId: string, content: { text?: string; file?: File }, sender: 'patient' | 'manager') => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
 const getIconForMimeType = (type: string): { icon: React.ReactNode, color: string } => {
@@ -34,7 +32,7 @@ const getIconForMimeType = (type: string): { icon: React.ReactNode, color: strin
     return { icon: <DocumentIcon className="w-8 h-8" />, color: 'text-slate-500' };
 };
 
-const PatientEducationManager: React.FC<PatientEducationManagerProps> = ({ department, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onAddPatient, onDeletePatient, onSendMessage, onBack, supabase }) => {
+const PatientEducationManager: React.FC<PatientEducationManagerProps> = ({ department, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onAddPatient, onDeletePatient, onSendMessage, onBack }) => {
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
     const [replyText, setReplyText] = useState('');
 
@@ -276,7 +274,6 @@ const PatientEducationManager: React.FC<PatientEducationManagerProps> = ({ depar
                     onDeleteMaterial={onDeleteMaterial}
                     onUpdateMaterialDescription={onUpdateMaterialDescription}
                     setPreviewMaterial={setPreviewMaterial}
-                    supabase={supabase}
                 />
             </Modal>
             
@@ -315,7 +312,7 @@ const PatientEducationManager: React.FC<PatientEducationManagerProps> = ({ depar
                 </div>
             </Modal>
             
-            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
         </>
     );
 };
@@ -328,7 +325,6 @@ const ContentManager: React.FC<{
     onDeleteMaterial: (materialId: string) => void;
     onUpdateMaterialDescription: (materialId: string, description: string) => void;
     setPreviewMaterial: (material: TrainingMaterial | null) => void;
-    supabase: SupabaseClient;
 }> = ({ materials, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, setPreviewMaterial }) => {
     
     const [isUploading, setIsUploading] = useState(false);

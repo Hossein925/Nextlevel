@@ -8,13 +8,11 @@ import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
 import { PaperClipIcon } from './icons/PaperClipIcon';
 import { SunIcon } from './icons/SunIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface PatientPortalViewProps {
   department: Department;
   patient: Patient;
   onSendMessage: (content: { text?: string; file?: File }) => void;
-  supabase: SupabaseClient;
 }
 
 const getIconForMimeType = (type: string, size: 'large' | 'small' = 'large'): { icon: React.ReactNode, color: string } => {
@@ -26,7 +24,7 @@ const getIconForMimeType = (type: string, size: 'large' | 'small' = 'large'): { 
     return { icon: <DocumentIcon className={className} />, color: 'text-slate-500' };
 };
 
-const PatientPortalView: React.FC<PatientPortalViewProps> = ({ department, patient, onSendMessage, supabase }) => {
+const PatientPortalView: React.FC<PatientPortalViewProps> = ({ department, patient, onSendMessage }) => {
     const [previewMaterial, setPreviewMaterial] = useState<TrainingMaterial | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,7 +167,7 @@ const PatientPortalView: React.FC<PatientPortalViewProps> = ({ department, patie
                 <p>این محتوا صرفاً جهت اطلاع‌رسانی است و جایگزین مشاوره پزشکی نیست.</p>
             </footer>
             
-            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
         </div>
     );
 };

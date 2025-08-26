@@ -20,7 +20,6 @@ import { AudioIcon } from './icons/AudioIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import NewsCarousel from './NewsCarousel';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface StaffMemberViewProps {
   department: Department;
@@ -35,7 +34,6 @@ interface StaffMemberViewProps {
   accreditationMaterials: TrainingMaterial[];
   newsBanners: NewsBanner[];
   userRole: UserRole;
-  supabase: SupabaseClient;
 }
 
 const PERSIAN_MONTHS = [
@@ -71,7 +69,6 @@ const StaffMemberView: React.FC<StaffMemberViewProps> = ({
   accreditationMaterials,
   newsBanners,
   userRole,
-  supabase,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
@@ -516,7 +513,7 @@ const StaffMemberView: React.FC<StaffMemberViewProps> = ({
 
         {newsBanners && newsBanners.length > 0 && (
             <div className="mb-8 max-w-5xl mx-auto">
-                <NewsCarousel banners={newsBanners} supabase={supabase} />
+                <NewsCarousel banners={newsBanners} />
             </div>
         )}
         
@@ -1016,7 +1013,7 @@ const StaffMemberView: React.FC<StaffMemberViewProps> = ({
         </div>
       </Modal>
 
-      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase} />}
+      {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
     </div>
   );
 };

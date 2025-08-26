@@ -1,43 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { NewsBanner } from '../types';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface NewsCarouselProps {
     banners: NewsBanner[];
-    supabase: SupabaseClient;
 }
 
-const NewsCarousel: React.FC<NewsCarouselProps> = ({ banners, supabase }) => {
+const NewsCarousel: React.FC<NewsCarouselProps> = ({ banners }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [images, setImages] = useState<{ [key: string]: string }>({});
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchImages = async () => {
-            setIsLoading(true);
-            const imageMap: { [key: string]: string } = {};
-            const urlPromises = banners.map(async (banner) => {
-                try {
-                    const { data } = supabase.storage.from('materials').getPublicUrl(banner.imagePath);
-                    if (data) {
-                        imageMap[banner.id] = data.publicUrl;
-                    }
-                } catch (error) {
-                    console.error(`Failed to load image for banner ${banner.id}`, error);
-                }
-            });
-            
-            await Promise.all(urlPromises);
-            setImages(imageMap);
-            setIsLoading(false);
-        };
-
-        if (banners.length > 0) {
-            fetchImages();
-        } else {
-            setIsLoading(false);
-        }
-    }, [banners, supabase]);
 
     const goToPrevious = useCallback(() => {
         const isFirstSlide = currentIndex === 0;
@@ -62,20 +31,12 @@ const NewsCarousel: React.FC<NewsCarouselProps> = ({ banners, supabase }) => {
         }
     }, [currentIndex, banners.length, goToNext]);
 
-    if (isLoading) {
-        return (
-            <div className="w-full aspect-video bg-slate-200 dark:bg-slate-700 rounded-2xl animate-pulse flex items-center justify-center">
-                <p className="text-slate-500">در حال بارگذاری بنرها...</p>
-            </div>
-        );
-    }
-    
     if (banners.length === 0) {
         return null;
     }
 
     const currentBanner = banners[currentIndex];
-    const currentImage = images[currentBanner.id];
+    const currentImage = currentBanner.imagePath;
 
     return (
         <div className="rounded-2xl overflow-hidden shadow-lg bg-white dark:bg-slate-800">
@@ -90,7 +51,9 @@ const NewsCarousel: React.FC<NewsCarouselProps> = ({ banners, supabase }) => {
                         className="w-full h-full object-cover"
                     />
                 ) : (
-                    <p className="text-slate-500">تصویر در دسترس نیست</p>
+                    <div className="w-full aspect-video bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                      <p className="text-slate-500">تصویر در دسترس نیست</p>
+                    </div>
                 )}
            
                 {/* Navigation Buttons */}

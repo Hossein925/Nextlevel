@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NewsBanner } from '../types';
 import { TrashIcon } from './icons/TrashIcon';
 import { EditIcon } from './icons/EditIcon';
 import FileUploader from './FileUploader';
 import Modal from './Modal';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface NewsBannerManagerProps {
   banners: NewsBanner[];
@@ -12,10 +11,9 @@ interface NewsBannerManagerProps {
   onUpdateBanner: (bannerId: string, title: string, description: string) => void;
   onDeleteBanner: (bannerId: string) => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
-const NewsBannerManager: React.FC<NewsBannerManagerProps> = ({ banners, onAddBanner, onUpdateBanner, onDeleteBanner, onBack, supabase }) => {
+const NewsBannerManager: React.FC<NewsBannerManagerProps> = ({ banners, onAddBanner, onUpdateBanner, onDeleteBanner, onBack }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -25,23 +23,6 @@ const NewsBannerManager: React.FC<NewsBannerManagerProps> = ({ banners, onAddBan
     
     const [bannerTitle, setBannerTitle] = useState('');
     const [bannerDescription, setBannerDescription] = useState('');
-
-    const [bannerImages, setBannerImages] = useState<{[key: string]: string}>({});
-
-    useEffect(() => {
-        const fetchImages = async () => {
-            const images: {[key: string]: string} = {};
-            for (const banner of banners) {
-                if(banner.imagePath) {
-                    const { data } = supabase.storage.from('materials').getPublicUrl(banner.imagePath);
-                    images[banner.id] = data.publicUrl;
-                }
-            }
-            setBannerImages(images);
-        };
-        fetchImages();
-    }, [banners, supabase]);
-
 
     const handleFileUpload = (file: File) => {
         if (!file.type.startsWith('image/')) {
@@ -123,7 +104,7 @@ const NewsBannerManager: React.FC<NewsBannerManagerProps> = ({ banners, onAddBan
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {banners.map(banner => (
                             <div key={banner.id} className="group relative bg-slate-50 dark:bg-slate-700/50 rounded-lg shadow-sm overflow-hidden">
-                                <img src={bannerImages[banner.id] || ''} alt={banner.title} className="w-full aspect-video object-cover bg-slate-200 dark:bg-slate-600" />
+                                <img src={banner.imagePath || ''} alt={banner.title} className="w-full aspect-video object-cover bg-slate-200 dark:bg-slate-600" />
                                 <div className="p-4">
                                     <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate">{banner.title}</h4>
                                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 h-10 overflow-hidden text-ellipsis">

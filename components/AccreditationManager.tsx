@@ -10,7 +10,6 @@ import { VideoIcon } from './icons/VideoIcon';
 import { AudioIcon } from './icons/AudioIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { DocumentIcon } from './icons/DocumentIcon';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 interface AccreditationManagerProps {
   materials: TrainingMaterial[];
@@ -18,7 +17,6 @@ interface AccreditationManagerProps {
   onDeleteMaterial: (materialId: string) => void;
   onUpdateMaterialDescription: (materialId: string, description: string) => void;
   onBack: () => void;
-  supabase: SupabaseClient;
 }
 
 const getIconForMimeType = (type: string): { icon: React.ReactNode, color: string } => {
@@ -29,7 +27,7 @@ const getIconForMimeType = (type: string): { icon: React.ReactNode, color: strin
     return { icon: <DocumentIcon className="w-10 h-10" />, color: 'text-slate-500' };
 };
 
-const AccreditationManager: React.FC<AccreditationManagerProps> = ({ materials, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onBack, supabase }) => {
+const AccreditationManager: React.FC<AccreditationManagerProps> = ({ materials, onAddMaterial, onDeleteMaterial, onUpdateMaterialDescription, onBack }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [previewMaterial, setPreviewMaterial] = useState<TrainingMaterial | null>(null);
@@ -138,8 +136,7 @@ const AccreditationManager: React.FC<AccreditationManagerProps> = ({ materials, 
                 </div>
             </div>
             
-            {/* FIX: Added the required 'supabase' prop to PreviewModal. */}
-            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} supabase={supabase}/>}
+            {previewMaterial && <PreviewModal isOpen={!!previewMaterial} onClose={() => setPreviewMaterial(null)} material={previewMaterial} />}
             
             <Modal isOpen={descriptionModalOpen} onClose={() => setDescriptionModalOpen(false)} title={pendingFile ? "افزودن توضیحات" : "ویرایش توضیحات"}>
                 <div className="space-y-4">

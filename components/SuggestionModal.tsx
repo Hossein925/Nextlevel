@@ -101,7 +101,7 @@ const SuggestionModal: React.FC<SuggestionModalProps> = ({ isOpen, onClose, titl
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/---/g, '<hr class="my-4 border-slate-300 dark:border-slate-600" />')
-      .replace(/<QUOTE>(.*?)<\/QUOTE>/gs, (match, p1) => `<blockquote class="border-r-4 border-slate-300 dark:border-slate-600 pr-4 italic text-slate-500 dark:text-slate-400 my-4">${p1.trim().replace(/\n/g, '<br />')}</blockquote>`)
+      .replace(/<QUOTE>([\s\S]*?)<\/QUOTE>/g, (match, p1) => `<blockquote class="border-r-4 border-slate-300 dark:border-slate-600 pr-4 italic text-slate-500 dark:text-slate-400 my-4">${p1.trim().replace(/\n/g, '<br />')}</blockquote>`)
       .replace(/\n/g, '<br />');
   };
 

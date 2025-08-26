@@ -911,7 +911,7 @@ const StaffMemberView: React.FC<StaffMemberViewProps> = ({
                           borderRadius: '0.5rem',
                       }}
                       labelStyle={{ color: '#f1f5f9' }}
-                      formatter={(value: number | null, name: string) => {
+                      formatter={(value: any, name: any) => {
                         if (value === null || value === undefined) {
                           return ["ثبت نشده", name];
                         }

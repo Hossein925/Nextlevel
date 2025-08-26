@@ -25,8 +25,15 @@ import { BackIcon } from '../components/icons/BackIcon';
 import AdminCommunicationView from '../components/AdminCommunicationView';
 import HospitalCommunicationView from '../components/HospitalCommunicationView';
 import { createClient } from '../utils/supabase/client';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-const supabase = createClient();
+let supabase: SupabaseClient | null = null;
+let supabaseInitializationError: string | null = null;
+try {
+  supabase = createClient();
+} catch (error) {
+  supabaseInitializationError = (error as Error).message;
+}
 
 const PERSIAN_MONTHS = [
   "فروردین", "اردیبهشت", "خرداد",
@@ -49,9 +56,14 @@ const HomePage: React.FC = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loggedInUser, setLoggedInUser] = useState<LoggedInUser | null>(null);
+  const [initializationError, setInitializationError] = useState<string | null>(supabaseInitializationError);
 
   // --- Data Fetching from Supabase ---
   const fetchData = useCallback(async () => {
+    if (!supabase) {
+      setIsDataLoaded(true);
+      return;
+    }
     setIsDataLoaded(false);
     
     // This is a simplified fetch. In a real-world app with large data,
@@ -83,7 +95,7 @@ const HomePage: React.FC = () => {
       
     if (error) {
       console.error("Error fetching data:", error);
-      alert(`Failed to load data from the database: ${error.message}`);
+      setInitializationError(`خطا در بارگذاری اطلاعات از پایگاه داده: ${error.message}. لطفاً از صحت اطلاعات اتصال و سطح دسترسی (RLS) اطمینان حاصل کنید.`);
       setIsDataLoaded(true);
       return;
     }
@@ -164,6 +176,7 @@ const HomePage: React.FC = () => {
 
   // --- Data Handlers (Now with Supabase DB + Vercel Blob) ---
   const handleAddHospital = async (name: string, province: string, city: string, supervisorName: string, supervisorNationalId: string, supervisorPassword: string) => {
+    if (!supabase) return;
     const newHospitalId = `hosp-${Date.now()}`;
 
     const { error } = await supabase.from('hospitals').insert({
@@ -188,6 +201,7 @@ const HomePage: React.FC = () => {
   }
 
   const handleDeleteHospital = async (id: string) => {
+    if (!supabase) return;
     const { error } = await supabase.from('hospitals').delete().eq('id', id);
     if(error){
         alert(`Failed to delete hospital: ${error.message}`);
@@ -198,7 +212,7 @@ const HomePage: React.FC = () => {
 
   // --- Department Handlers ---
   const handleAddDepartment = async (name: string, managerName: string, managerNationalId: string, managerPassword: string, staffCount: number, bedCount: number) => {
-    if (!selectedHospitalId) return;
+    if (!selectedHospitalId || !supabase) return;
     const newDepartmentId = `dept-${Date.now()}`;
     
     const { error } = await supabase.from('departments').insert({
@@ -233,6 +247,7 @@ const HomePage: React.FC = () => {
   }
 
   const handleDeleteDepartment = async (id: string) => {
+    if (!supabase) return;
     const { error } = await supabase.from('departments').delete().eq('id', id);
     if(error){
         alert(`Failed to delete department: ${error.message}`);
@@ -242,6 +257,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleResetHospital = async (supervisorNationalId: string, supervisorPassword: string): Promise<boolean> => {
+    if (!supabase) return false;
     const hospital = findHospital(selectedHospitalId);
     if (!hospital) return false;
 
@@ -265,6 +281,7 @@ const HomePage: React.FC = () => {
     file: File,
     context: { hospitalId: string, departmentId?: string, month?: string, type: 'monthly_staff' | 'accreditation' | 'patient_education' }
   ) => {
+    if (!supabase) return;
     try {
       const newBlob = await upload(file.name, file, {
         access: 'public',
@@ -296,6 +313,7 @@ const HomePage: React.FC = () => {
   };
   
   const handleDeleteMaterial = async (materialId: string) => {
+    if (!supabase) return;
     const materialToDelete = hospitals
         .flatMap(h => [...(h.accreditationMaterials || []), ...(h.trainingMaterials || []).flatMap(t => t.materials), ...(h.departments || []).flatMap(d => d.patientEducationMaterials || [])])
         .find(m => m.id === materialId);
@@ -324,6 +342,7 @@ const HomePage: React.FC = () => {
   };
   
   const handleUpdateMaterialDescription = async (materialId: string, description: string) => {
+    if (!supabase) return;
     const { error } = await supabase.from('training_materials').update({ description }).eq('id', materialId);
     if(error){
       alert("Failed to update description");
@@ -334,7 +353,7 @@ const HomePage: React.FC = () => {
 
   // --- News Banner Handlers ---
   const handleAddNewsBanner = async (banner: Omit<NewsBanner, 'id' | 'imagePath'>, imageFile: File) => {
-    if (!selectedHospitalId) return;
+    if (!selectedHospitalId || !supabase) return;
     try {
         const newBlob = await upload(imageFile.name, imageFile, {
             access: 'public',
@@ -360,6 +379,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleDeleteNewsBanner = async (bannerId: string) => {
+      if (!supabase) return;
       const hospital = findHospital(selectedHospitalId);
       const banner = hospital?.newsBanners?.find(b => b.id === bannerId);
       if(!banner || !banner.imagePath) return;
@@ -380,6 +400,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleUpdateNewsBanner = async (bannerId: string, title: string, description: string) => {
+      if (!supabase) return;
       await supabase.from('news_banners').update({ title, description }).eq('id', bannerId);
       await fetchData();
   };
@@ -390,6 +411,7 @@ const HomePage: React.FC = () => {
     content: { text?: string; file?: File },
     sender: 'patient' | 'manager' | 'hospital' | 'admin'
   ) => {
+      if (!supabase) return;
       let messageContent: MessageContent = { text: content.text };
 
       if (content.file) {
@@ -740,7 +762,23 @@ const HomePage: React.FC = () => {
     }
   };
   
-    const renderApp = () => {
+  const renderApp = () => {
+    if (initializationError) {
+      return (
+          <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4">
+              <div className="text-center max-w-2xl bg-white dark:bg-slate-800 p-8 rounded-lg shadow-2xl border border-red-500/30">
+                  <h1 className="text-2xl font-bold text-red-500 mb-4">خطای پیکربندی برنامه</h1>
+                  <p className="mb-2">اتصال به پایگاه داده برقرار نشد. به نظر می‌رسد متغیرهای محیطی لازم برای Supabase تنظیم نشده‌اند.</p>
+                  <p className="mb-4">لطفاً مطمئن شوید که متغیرهای <code className="bg-slate-200 dark:bg-slate-700 p-1 rounded text-sm">NEXT_PUBLIC_SUPABASE_URL</code> و <code className="bg-slate-200 dark:bg-slate-700 p-1 rounded text-sm">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> را در تنظیمات پروژه Vercel خود به درستی وارد کرده‌اید.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">پس از تنظیم این متغیرها، پروژه را مجدداً Deploy کنید.</p>
+                  <pre className="mt-6 p-4 bg-slate-100 dark:bg-slate-800/50 rounded-md text-left text-xs text-red-400 overflow-x-auto">
+                    {initializationError}
+                  </pre>
+              </div>
+          </div>
+      );
+    }
+    
     if (appScreen === AppScreen.Welcome) {
       return <WelcomeScreen onEnter={() => setIsLoginModalOpen(true)} />;
     }
